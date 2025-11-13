@@ -1,9 +1,12 @@
 import React, { useCallback } from "react";
-import { LoadingOverlay } from "@mantine/core";
+import { LoadingOverlay, Button, Group, Text } from "@mantine/core";
 import styled from "styled-components";
 import Editor, { type EditorProps, loader, type OnMount, useMonaco } from "@monaco-editor/react";
 import useConfig from "../../store/useConfig";
 import useFile from "../../store/useFile";
+import useJson from "../../store/useJson";
+import { contentToJson } from "../../lib/utils/jsonAdapter";
+import { toast } from "react-hot-toast";
 
 loader.config({
   paths: {
@@ -75,6 +78,39 @@ const TextEditor = () => {
   return (
     <StyledEditorWrapper>
       <StyledWrapper>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px" }}>
+          <div />
+          <div>
+            {getHasChanges() && (
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <Text fz="xs" color="dimmed">
+                  Unsaved changes
+                </Text>
+                <Button
+                  size="xs"
+                  onClick={async () => {
+                    try {
+                      const currentContents = contents;
+                      const format = fileType;
+                      const parsed = await contentToJson(currentContents, format);
+                      const jsonStr = JSON.stringify(parsed, null, 2);
+                      useJson.getState().setJson(jsonStr);
+                      // update file store but avoid triggering live transform (skipUpdate true)
+                      useFile.getState().setContents({ contents: currentContents, hasChanges: false, skipUpdate: true } as any);
+                      useFile.getState().setHasChanges(false);
+                      toast.success("Saved and graph updated");
+                    } catch (err: any) {
+                      const msg = typeof err === "string" ? err : err?.message ?? "Failed to save";
+                      toast.error(msg);
+                    }
+                  }}
+                >
+                  Save
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
         <Editor
           className="sentry-mask"
           data-sentry-mask="true"
@@ -106,5 +142,6 @@ const StyledWrapper = styled.div`
   display: grid;
   height: 100%;
   grid-template-columns: 100%;
-  grid-template-rows: minmax(0, 1fr);
+  /* top row for toolbar/status, bottom row for editor */
+  grid-template-rows: auto 1fr;
 `;
